@@ -78,9 +78,19 @@ export interface SlattContext {
 
 export type SlattRequestHandler = (ctx: SlattContext) => Promise<SlattRequestHandler | void> | SlattRequestHandler | void
 export type SlattMiddleware = (handler?: SlattRequestHandler) => SlattRequestHandler
-export type SlattRoute = [string, SlattRequestHandler]
-export type SlattRouteHandler = (path: string, handler: SlattRequestHandler) => SlattRoute
-export type SlattApp = (...routes: SlattRoute[]) => SlattRequestHandler
+export type SlattRoute = [{ path: string, method: string }, SlattRequestHandler]
+export type SlattRouteHandler = (path: string, handler: SlattRequestHandler) => SlattRouteBuilder
+export type SlattApp = (...routes: (SlattRouteBuilder)[]) => SlattRequestHandler
+
+
+type RouteBuilder = { type: string, parent: SlattRouteBuilder }
+type Methods = ('get' | 'post' | 'put' | 'patch' | 'delete' | 'all')
+type Method = { [key in Methods]: SlattRouteBuilder | undefined }
+type SlattRouteDef = (type: Methods, next: SlattRouteBuilder) => Method
+type SlattComposedRouteDef = (type: Methods, next?: SlattRouteBuilder) => Method
+type SlattRouteBuilder = Method & {
+    build?: () => SlattRoute[]
+}
 
 /**
  * Creates an application that matches a request route path.
@@ -89,8 +99,9 @@ export type SlattApp = (...routes: SlattRoute[]) => SlattRequestHandler
  * @returns The route that matches the request.
  */
 export const app: SlattApp = (...routes) => {
-    const [, handler] = routes[0]
-    return handler
+    // const [, handler] = routes[0].routes[0]
+    console.log(routes, { routes: routes[0] })
+    return (ctx) => ctx.req.respond({ status: 200, body: `fkoap` })
 }
 
 /**
@@ -100,12 +111,88 @@ export const app: SlattApp = (...routes) => {
  * @returns A route definition [path, handler]
  */
 export const route: SlattRouteHandler = (path, handler) => {
-    const proxy = new Proxy({}, {
-        get(target, prop, receiver) {
+    // var x = {
+    //     get: function (target: any, key: any, receiver: any) {
+    //         if (!(key in target)) {
+    //         target[key] = Tree();  // auto-create a sub-Tree
+    //         }
+    //         return Reflect.get(target, key, receiver);
+    //     }
+    // }
+    // function Tree() {
+    //     return new Proxy({}, x);
+    //   }
 
-        }
+    let routes: SlattRoute[] = []
+
+    // const routeDef: SlattRouteDef = (type, next) => new Proxy<SlattRouteBuilder>({
+    //     get: next,
+    //     put: next,
+    //     post: next,
+    //     all: next,
+    //     delete: next,
+    //     patch: next,
+    // }, proxyHandler)
+    // const composedRouteDef: SlattComposedRouteDef = (type, next) => new Proxy<SlattRouteBuilder>({
+    //     get: next,
+    //     put: next,
+    //     post: next,
+    //     all: next,
+    //     delete: next,
+    //     patch: next,
+    // }, proxyHandler)
+    const routeDef: SlattRouteDef = (type, next) => ({
+        get: undefined,
+        put: undefined,
+        post: undefined,
+        all: undefined,
+        delete: undefined,
+        patch: undefined,
+        [type]: next,
     })
-    return [path, handler]
+    const composedRouteDef: SlattComposedRouteDef = (type, next) => ({
+        get: undefined,
+        put: undefined,
+        post: undefined,
+        all: undefined,
+        delete: undefined,
+        patch: undefined,
+        [type]: next,
+    })
+    const method: Method = {
+        get: undefined,
+        put: undefined,
+        post: undefined,
+        all: undefined,
+        delete: undefined,
+        patch: undefined,
+    }
+    
+    const proxyHandler = {
+        get: function(target: Method, prop: Methods, receiver: any): SlattRouteBuilder {
+            // if (prop in target) {
+            //     // target[prop] = new Proxy(target, proxyHandler)
+            //     return 
+            //     // if (typeof prop === 'function') {
+            //     //     routes.push([{ path, method: 'get' }, route(path, prop as SlattMiddleware)])
+            //     //     return target[prop]
+            //     // }
+            // }
+            routes = routes.concat([[{ path, method: 'get' }, handler]])
+            console.log(target, `target`)
+            if (typeof target[prop] === 'undefined') {
+                return target
+            }
+            return new Proxy(composedRouteDef(prop, target[prop]), proxyHandler)
+            // target.routes.push([{ path, method: 'get' }, handler])
+            // return target[prop]
+        }
+    }
+
+    const proxy = new Proxy(method, proxyHandler)
+    proxy.patch?.put?.put
+    console.log(routes, proxy, { x: Object.keys(proxy.get!) })
+    return proxy
 }
 
 
