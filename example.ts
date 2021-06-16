@@ -28,7 +28,8 @@ const users = app(
     route('/', pipe(
         fallthroughMiddleware,
         fallthroughMiddleware
-    )(allUsers)).patch?.put?.get!
+    )(allUsers)).get,
+    route('/x', app(route('/', allUsers)))
 )
 
 const exampleApp = slatt({ port: 3333, hostname: '127.0.0.1' })(

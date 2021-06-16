@@ -82,14 +82,25 @@ export type SlattRoute = [{ path: string, method: string }, SlattRequestHandler]
 export type SlattRouteHandler = (path: string, handler: SlattRequestHandler) => SlattRouteBuilder
 export type SlattApp = (...routes: (SlattRouteBuilder)[]) => SlattRequestHandler
 
+// <Exclude<typeof methods[number], keyof typeof target>
 
-type RouteBuilder = { type: string, parent: SlattRouteBuilder }
-type Methods = ('get' | 'post' | 'put' | 'patch' | 'delete' | 'all')
-type Method = { [key in Methods]: SlattRouteBuilder | undefined }
-type SlattRouteDef = (type: Methods, next: SlattRouteBuilder) => Method
-type SlattComposedRouteDef = (type: Methods, next?: SlattRouteBuilder) => Method
-type SlattRouteBuilder = Method & {
-    build?: () => SlattRoute[]
+type Methods<T extends string = ''> = T | 'get' | 'post' | 'put' | 'patch' | 'delete' | 'all'
+
+const methods: Exclude<Methods, ''>[] = ['get' , 'post' , 'put' , 'patch' , 'delete' , 'all']
+
+type Method<T extends typeof methods[number] = typeof methods[number]> = { [key in typeof methods[number]]: Omit<Method<T | key>, T | key> }
+type SlattRouteBuilder<T extends typeof methods[number] = typeof methods[number]> = Method<T> & {
+    routes: SlattRoute[]
+}
+// const create = <T extends typeof methods[number] = typeof methods[number]>(type: Methods = '', prevTypes: Methods[] = []): Method<T> | Method<Exclude<Methods, typeof type>> => {
+const create = (type: Methods = '', prevTypes: Methods[] = []): Method<Exclude<Methods, typeof type>> => {
+    // type entry = [typeof methods, Method<Exclude<Methods, typeof type>>][]
+    const entries = methods.filter((t) => !(prevTypes.includes(t)))
+            .map((t: typeof methods[number]) => {
+                console.log(t)
+                return [t, create(t, prevTypes.concat([type]))]
+            })
+    return Object.fromEntries(entries)
 }
 
 /**
@@ -111,65 +122,16 @@ export const app: SlattApp = (...routes) => {
  * @returns A route definition [path, handler]
  */
 export const route: SlattRouteHandler = (path, handler) => {
-    // var x = {
-    //     get: function (target: any, key: any, receiver: any) {
-    //         if (!(key in target)) {
-    //         target[key] = Tree();  // auto-create a sub-Tree
-    //         }
-    //         return Reflect.get(target, key, receiver);
-    //     }
-    // }
-    // function Tree() {
-    //     return new Proxy({}, x);
-    //   }
-
     let routes: SlattRoute[] = []
 
-    // const routeDef: SlattRouteDef = (type, next) => new Proxy<SlattRouteBuilder>({
-    //     get: next,
-    //     put: next,
-    //     post: next,
-    //     all: next,
-    //     delete: next,
-    //     patch: next,
-    // }, proxyHandler)
-    // const composedRouteDef: SlattComposedRouteDef = (type, next) => new Proxy<SlattRouteBuilder>({
-    //     get: next,
-    //     put: next,
-    //     post: next,
-    //     all: next,
-    //     delete: next,
-    //     patch: next,
-    // }, proxyHandler)
-    const routeDef: SlattRouteDef = (type, next) => ({
-        get: undefined,
-        put: undefined,
-        post: undefined,
-        all: undefined,
-        delete: undefined,
-        patch: undefined,
-        [type]: next,
-    })
-    const composedRouteDef: SlattComposedRouteDef = (type, next) => ({
-        get: undefined,
-        put: undefined,
-        post: undefined,
-        all: undefined,
-        delete: undefined,
-        patch: undefined,
-        [type]: next,
-    })
-    const method: Method = {
-        get: undefined,
-        put: undefined,
-        post: undefined,
-        all: undefined,
-        delete: undefined,
-        patch: undefined,
-    }
+    // const builder: SlattRouteBuilder = Object.assign({}, create(), {
+    //     routes
+    // })
+    const builder = create()
     
     const proxyHandler = {
-        get: function(target: Method, prop: Methods, receiver: any): SlattRouteBuilder {
+        // Omit<Method<Methods | typeof prop>, Methods | typeof prop>
+        get: function(target: Method | SlattRouteBuilder, prop: keyof typeof target, receiver: any): SlattRouteBuilder<Exclude<keyof typeof target, 'routes'>> | SlattRoute[] {
             // if (prop in target) {
             //     // target[prop] = new Proxy(target, proxyHandler)
             //     return 
@@ -178,21 +140,28 @@ export const route: SlattRouteHandler = (path, handler) => {
             //     //     return target[prop]
             //     // }
             // }
-            routes = routes.concat([[{ path, method: 'get' }, handler]])
             console.log(target, `target`)
-            if (typeof target[prop] === 'undefined') {
-                return target
+            routes = routes.concat([[{ path, method: prop }, handler]])
+            if ((target as SlattRouteBuilder).routes) {
+                return routes
             }
-            return new Proxy(composedRouteDef(prop, target[prop]), proxyHandler)
+            // if (target as SlattRouteBuilder) {
+            // }
+            // if (prop === '') {
+            //     return Reflect.get(target, prop, receiver)
+            // }
+            // if (prop === 'build') return target[prop]()
+            return Reflect.get(target, prop, receiver)
+            // return new Proxy(create(prop, Object.keys(target) as Methods[]), proxyHandler)
             // target.routes.push([{ path, method: 'get' }, handler])
             // return target[prop]
         }
     }
 
-    const proxy = new Proxy(method, proxyHandler)
-    proxy.patch?.put?.put
-    console.log(routes, proxy, { x: Object.keys(proxy.get!) })
-    return proxy
+    const proxy = new Proxy(builder, proxyHandler)
+    // proxy.
+    // console.log(routes, proxy, { x: Object.keys(proxy.get!) })
+    return proxy as SlattRouteBuilder
 }
 
 
