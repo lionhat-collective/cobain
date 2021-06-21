@@ -1,29 +1,29 @@
 import { serve, HTTPOptions, ServerRequest } from "https://deno.land/std@0.98.0/http/server.ts"
 
-const defaultSlattContext = {
+const defaultCobainContext = {
     local: {},
     plugins: []
 }
 
-export const slatt: Slatt = (addr, opts: unknown = defaultSlattContext) => {
+export const cobain: Cobain = (addr, opts: unknown = defaultCobainContext) => {
     return (...middleware) => {
         for (const fn of middleware) {
             if (typeof fn !== 'function') throw new TypeError('Middleware must be composed of functions!')
         }
 
-        function createContext(req: ServerRequest): SlattContext {
+        function createContext(req: ServerRequest): CobainContext {
             return {
                 req,
                 local: opts
             }
         }
-        async function respond(ctx: SlattContext): Promise<void> {
+        async function respond(ctx: CobainContext): Promise<void> {
             // if (ctx.req.)
             // ctx.req.
         }
 
         // Shoutout the Koa team (https://github.com/koajs/compose)
-        const compose = (ctx: SlattContext) => {
+        const compose = (ctx: CobainContext) => {
             let index = -1
             return dispatch(0)
             function dispatch (i: number) {
@@ -63,24 +63,24 @@ export const slatt: Slatt = (addr, opts: unknown = defaultSlattContext) => {
     }
 }
 
-export interface SlattInstance {
+export interface CobainInstance {
     start: () => Promise<void>
     handleRequest: (req: ServerRequest) => Promise<void>
 }
 
-export type Slatt = (addr: string | HTTPOptions, opts?: unknown) => 
-    (...middleware: SlattRequestHandler[]) => SlattInstance
+export type Cobain = (addr: string | HTTPOptions, opts?: unknown) => 
+    (...middleware: CobainRequestHandler[]) => CobainInstance
 
-export interface SlattContext {
+export interface CobainContext {
     local: unknown
     req: ServerRequest
 }
 
-export type SlattRequestHandler = (ctx: SlattContext) => Promise<SlattRequestHandler | void> | SlattRequestHandler | void
-export type SlattMiddleware = (handler?: SlattRequestHandler) => SlattRequestHandler
-export type SlattRoute = [{ path: string, method: string }, SlattRequestHandler]
-export type SlattRouteHandler = (path: string, handler: SlattRequestHandler) => SlattRouteBuilder
-export type SlattApp = (...routes: (SlattRouteBuilder)[]) => SlattRequestHandler
+export type CobainRequestHandler = (ctx: CobainContext) => Promise<CobainRequestHandler | void> | CobainRequestHandler | void
+export type CobainMiddleware = (handler?: CobainRequestHandler) => CobainRequestHandler
+export type CobainRoute = [{ path: string, method: string }, CobainRequestHandler]
+export type CobainRouteHandler = (path: string, handler: CobainRequestHandler) => CobainRouteBuilder
+export type CobainApp = (...routes: (CobainRouteBuilder)[]) => CobainRequestHandler
 
 // <Exclude<typeof methods[number], keyof typeof target>
 
@@ -88,17 +88,19 @@ type Methods<T extends string = ''> = T | 'get' | 'post' | 'put' | 'patch' | 'de
 
 const methods: Exclude<Methods, ''>[] = ['get' , 'post' , 'put' , 'patch' , 'delete' , 'all']
 
-type Method<T extends typeof methods[number] = typeof methods[number]> = { [key in typeof methods[number]]: Omit<Method<T | key>, T | key> }
-type SlattRouteBuilder<T extends typeof methods[number] = typeof methods[number]> = Method<T> & {
-    routes: SlattRoute[]
+type Method<T extends typeof methods[number] = typeof methods[number]> = {
+    [key in typeof methods[number]]: Omit<Method<T | key>, T | key>
+}
+type CobainRouteBuilder<T extends typeof methods[number] = typeof methods[number]> = Method<T> & {
+    routes: CobainRoute[]
 }
 // const create = <T extends typeof methods[number] = typeof methods[number]>(type: Methods = '', prevTypes: Methods[] = []): Method<T> | Method<Exclude<Methods, typeof type>> => {
-const create = (type: Methods = '', prevTypes: Methods[] = []): Method<Exclude<Methods, typeof type>> => {
+const create = (type: Methods = '', prevTypes: typeof methods[number][] = []): Method<Exclude<Methods, typeof type>> => {
     // type entry = [typeof methods, Method<Exclude<Methods, typeof type>>][]
     const entries = methods.filter((t) => !(prevTypes.includes(t)))
             .map((t: typeof methods[number]) => {
                 console.log(t)
-                return [t, create(t, prevTypes.concat([type]))]
+                return [t, create(t, type === '' ? [] : prevTypes.concat([type]))]
             })
     return Object.fromEntries(entries)
 }
@@ -109,7 +111,7 @@ const create = (type: Methods = '', prevTypes: Methods[] = []): Method<Exclude<M
  * @param routes The routes that are specific to this application.
  * @returns The route that matches the request.
  */
-export const app: SlattApp = (...routes) => {
+export const app: CobainApp = (...routes) => {
     // const [, handler] = routes[0].routes[0]
     console.log(routes, { routes: routes[0] })
     return (ctx) => ctx.req.respond({ status: 200, body: `fkoap` })
@@ -121,55 +123,56 @@ export const app: SlattApp = (...routes) => {
  * @param handler The request handler.
  * @returns A route definition [path, handler]
  */
-export const route: SlattRouteHandler = (path, handler) => {
-    let routes: SlattRoute[] = []
+export const route: CobainRouteHandler = (path, handler) => {
+    let routes: CobainRoute[] = []
 
-    // const builder: SlattRouteBuilder = Object.assign({}, create(), {
+    // const builder: CobainRouteBuilder = Object.assign({}, create(), {
     //     routes
     // })
     const builder = create()
     
-    const proxyHandler = {
+    const proxyHandler = (type: Methods = '') => ({
         // Omit<Method<Methods | typeof prop>, Methods | typeof prop>
-        get: function(target: Method | SlattRouteBuilder, prop: keyof typeof target, receiver: any): SlattRouteBuilder<Exclude<keyof typeof target, 'routes'>> | SlattRoute[] {
+        get: function(target: CobainRouteBuilder<Exclude<Methods, typeof type>>, prop: keyof typeof target, receiver: any): CobainRouteBuilder<Exclude<Methods, typeof type>> {
             // if (prop in target) {
             //     // target[prop] = new Proxy(target, proxyHandler)
             //     return 
             //     // if (typeof prop === 'function') {
-            //     //     routes.push([{ path, method: 'get' }, route(path, prop as SlattMiddleware)])
+            //     //     routes.push([{ path, method: 'get' }, route(path, prop as CobainMiddleware)])
             //     //     return target[prop]
             //     // }
             // }
             console.log(target, `target`)
             routes = routes.concat([[{ path, method: prop }, handler]])
-            if ((target as SlattRouteBuilder).routes) {
-                return routes
+            // if (target as CobainRouteBuilder) {
+            // }
+            if (prop === 'routes') {
+                return target
             }
-            // if (target as SlattRouteBuilder) {
-            // }
-            // if (prop === '') {
-            //     return Reflect.get(target, prop, receiver)
-            // }
+            // const keys = Object.keys(target) as Exclude<typeof methods, typeof type>
             // if (prop === 'build') return target[prop]()
-            return Reflect.get(target, prop, receiver)
-            // return new Proxy(create(prop, Object.keys(target) as Methods[]), proxyHandler)
+            // return Reflect.get(target, prop, receiver)
+            return new Proxy({
+                ...create(prop),
+                routes
+            }, proxyHandler(prop))
             // target.routes.push([{ path, method: 'get' }, handler])
             // return target[prop]
         }
-    }
+    })
 
-    const proxy = new Proxy(builder, proxyHandler)
-    // proxy.
+    const proxy = new Proxy({ ...builder, routes }, proxyHandler())
+
     // console.log(routes, proxy, { x: Object.keys(proxy.get!) })
-    return proxy as SlattRouteBuilder
+    return proxy
 }
 
 
 /*
 
-const allUsers = (ctx: SlattContext) => {}
-const user = (ctx: SlattContext) => {}
-const profile = (ctx: SlattContext) => {}
+const allUsers = (ctx: CobainContext) => {}
+const user = (ctx: CobainContext) => {}
+const profile = (ctx: CobainContext) => {}
 
 const users = app({
     '/': route(auth(allUsers)).get,
@@ -187,7 +190,7 @@ const posts = app({
     route('/:id/profile', profile) // defaults to .get
 })
 
-const myAppName = slatt()(
+const myAppName = cobain()(
     auth(
         users,
         posts

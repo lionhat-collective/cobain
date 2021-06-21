@@ -1,5 +1,5 @@
-![slime love all the time](./slatt.svg)
-## A (micro) web-framework for Deno
+![cobain](./cobain.svg)
+## A web-framework for Deno
 Utilizing function composition and proxies to create a cohesive and fluent web-framework.
 
 ### Todo:
@@ -17,21 +17,21 @@ Utilizing function composition and proxies to create a cohesive and fluent web-f
  - [x] Server bootstrapping
 
 ### Usage:
-```javascript
-import type { SlattMiddleware, SlattRequestHandler } from 'https://raw.githubusercontent.com/lionhat-collective/slatt/master/slatt.ts'
-import { slatt, app, route } from 'https://raw.githubusercontent.com/lionhat-collective/slatt/master/slatt.ts'
+```typescript
 import { pipe } from 'https://deno.land/x/rambda@v6.7.0/pipe.js'
+import { cobain, app, route } from './cobain.ts'
+import type { CobainMiddleware, CobainRequestHandler } from './cobain.ts'
 
-const middleware: SlattMiddleware = (handler) => (ctx) => {
+const middleware: CobainMiddleware = (handler) => (ctx) => {
     console.log(`middleware called`)
     if (typeof handler !== 'undefined') {
-        console.log(`handler bb`)
+        console.log(`handler`)
         return handler(ctx)
     }
     ctx.req.respond({ status: 200, body: `MIDDLEWARE` })
 }
 
-const fallthroughMiddleware: SlattMiddleware = handler => async ctx => {
+const fallthroughMiddleware: CobainMiddleware = handler => async ctx => {
     if (handler) {
         console.log(`before:TEST`)
         await handler(ctx)
@@ -39,22 +39,23 @@ const fallthroughMiddleware: SlattMiddleware = handler => async ctx => {
     }
 }
 
-const allUsers: SlattRequestHandler = (ctx) => {
+const allUsers: CobainRequestHandler = (ctx) => {
     console.log(`useriso`)
     ctx.req.respond({ status: 200, body: `hello world` })
 }
 
+const f1 = fallthroughMiddleware
+const f2 = fallthroughMiddleware
+
 const users = app(
-    route('/', pipe(
-        fallthroughMiddleware,
-        fallthroughMiddleware
-    )(allUsers))
+    route('/', pipe(f1, f2)(allUsers)),
+    route('/x', app(route('/', allUsers)))
 )
 
-const exampleApp = slatt({ port: 3333, hostname: '127.0.0.1' })(
+const exampleApp = cobain({ port: 3333, hostname: '127.0.0.1' })(
     // route(middleware()),
     // middleware(),
-    users
+    fallthroughMiddleware(users)
 )
 
 exampleApp.start()
