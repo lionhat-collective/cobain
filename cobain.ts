@@ -84,7 +84,7 @@ export type CobainRequestHandler<Ctx extends CobainContext = CobainContext> = (c
     Promise<CobainRequestHandler<Ctx> | void> | CobainRequestHandler<Ctx> | void
 export type CobainMiddleware<Ctx extends CobainContext = CobainContext> = (handler?: CobainRequestHandler<Ctx>) => CobainRequestHandler<Ctx>
 export type CobainRoute<Ctx extends CobainContext = CobainContext> = [{ path: string, method: string }, CobainRequestHandler<Ctx>]
-export type CobainRouteHandler<Ctx extends CobainContext = CobainContext> = (path: string, handler: CobainRequestHandler<Ctx>) => CobainOmittedRouteBuilder | CobainRouteBuilder
+export type CobainRouteHandler<Ctx extends CobainContext = CobainContext> = (path: string, handler: CobainRequestHandler<Ctx>) => NonNullable<CobainRouteBuilder>
 export type CobainApp = <L extends CobainAppLocals = CobainAppLocals>(appContext: CobainAppContext<L>) => 
     (...routes: (CobainRouteBuilder)[]) => CobainRequestHandler<CobainContext<typeof appContext>>
 
@@ -94,19 +94,16 @@ type Decorators<D extends string = ''> = D | '' | 'get' | 'post' | 'put' | 'patc
 
 const decorators: Decorators[] = ['', 'get' , 'post' , 'put' , 'patch' , 'delete' , 'all', 'routes']
 
-type CobainRouteBuilder<T extends Decorators = Decorators> = Omit<CobainOmittedRouteBuilder<T>, T>
+// type CobainRouteBuilder<D extends Decorators = Decorators> = Omit<CobainOmittedRouteBuilder<D>, D>
 
-type CobainOmittedRouteBuilder<T extends Decorators = Decorators> = {
-    [key in Decorators]: key extends 'routes' ? CobainRoute[] : CobainRouteBuilder<T | key>
+type CobainRouteBuilder<D extends Decorators = Decorators> = {
+    [key in Decorators]: key extends 'routes' ? CobainRoute[] : Omit<CobainRouteBuilder<D | key>, D | key>
 }
 // const create = <T extends typeof methods[number] = typeof methods[number]>(type: Methods = '', prevTypes: Methods[] = []): Method<T> | Method<Exclude<Methods, typeof type>> => {
-const create = <T extends Decorators = ''>(type: T, prevTypes: Decorators[] = []): CobainOmittedRouteBuilder<typeof type> => {
+const create = <D extends Decorators>(decorator: D, prevDecorators: Decorators[] = []): CobainRouteBuilder<D> => {
     // type entry = [typeof methods, Method<Exclude<Methods, typeof type>>][]
-    const entries = decorators.filter((t) => !(prevTypes.includes(t)))
-            .map((t: typeof decorators[number]) => {
-                console.log(t)
-                return [t, create(t, type === '' ? [] : prevTypes.concat([type]))]
-            })
+    const entries = decorators.filter((t) => !(prevDecorators.includes(t)))
+            .map((t: Decorators) => [t, create(t, decorator === '' ? [] : prevDecorators.concat([decorator]))])
     return Object.fromEntries(entries)
 }
 
