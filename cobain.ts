@@ -1,11 +1,13 @@
 import { serve, HTTPOptions, ServerRequest } from "https://deno.land/std@0.98.0/http/server.ts"
 
-const defaultCobainContext = {
-    local: {},
-    plugins: []
+type CobainAppLocals = Record<string, unknown>
+
+type CobainAppContext<L extends CobainAppLocals = CobainAppLocals> = {
+    local?: L
+    plugins?: unknown[]
 }
 
-export const cobain: Cobain = (addr, opts: unknown = defaultCobainContext) => {
+export const cobain: Cobain = (addr) => {
     return (...middleware) => {
         for (const fn of middleware) {
             if (typeof fn !== 'function') throw new TypeError('Middleware must be composed of functions!')
@@ -14,7 +16,9 @@ export const cobain: Cobain = (addr, opts: unknown = defaultCobainContext) => {
         function createContext(req: ServerRequest): CobainContext {
             return {
                 req,
-                local: opts
+                decorators: [],
+                local: {},
+                plugins: [],
             }
         }
         async function respond(ctx: CobainContext): Promise<void> {
@@ -68,37 +72,38 @@ export interface CobainInstance {
     handleRequest: (req: ServerRequest) => Promise<void>
 }
 
-export type Cobain = (addr: string | HTTPOptions, opts?: unknown) => 
+export type Cobain = (addr: string | HTTPOptions) => 
     (...middleware: CobainRequestHandler[]) => CobainInstance
 
-export interface CobainContext {
-    local: unknown
+export type CobainContext<AppCtx extends CobainAppContext = CobainAppContext> = AppCtx & {
     req: ServerRequest
+    decorators: string[]
 }
-
-export type CobainRequestHandler = (ctx: CobainContext) => Promise<CobainRequestHandler | void> | CobainRequestHandler | void
-export type CobainMiddleware = (handler?: CobainRequestHandler) => CobainRequestHandler
-export type CobainRoute = [{ path: string, method: string }, CobainRequestHandler]
-export type CobainRouteHandler = (path: string, handler: CobainRequestHandler) => CobainRouteBuilder
-export type CobainApp = (...routes: (CobainRouteBuilder)[]) => CobainRequestHandler
+// opts: unknown = defaultCobainContext
+export type CobainRequestHandler<Ctx extends CobainContext = CobainContext> = (ctx: CobainContext) => 
+    Promise<CobainRequestHandler<Ctx> | void> | CobainRequestHandler<Ctx> | void
+export type CobainMiddleware<Ctx extends CobainContext = CobainContext> = (handler?: CobainRequestHandler<Ctx>) => CobainRequestHandler<Ctx>
+export type CobainRoute<Ctx extends CobainContext = CobainContext> = [{ path: string, method: string }, CobainRequestHandler<Ctx>]
+export type CobainRouteHandler<Ctx extends CobainContext = CobainContext> = (path: string, handler: CobainRequestHandler<Ctx>) => CobainOmittedRouteBuilder | CobainRouteBuilder
+export type CobainApp = <L extends CobainAppLocals = CobainAppLocals>(appContext: CobainAppContext<L>) => 
+    (...routes: (CobainRouteBuilder)[]) => CobainRequestHandler<CobainContext<typeof appContext>>
 
 // <Exclude<typeof methods[number], keyof typeof target>
 
-type Methods<T extends string = ''> = T | 'get' | 'post' | 'put' | 'patch' | 'delete' | 'all'
+type Decorators<D extends string = ''> = D | '' | 'get' | 'post' | 'put' | 'patch' | 'delete' | 'all' | 'routes'
 
-const methods: Exclude<Methods, ''>[] = ['get' , 'post' , 'put' , 'patch' , 'delete' , 'all']
+const decorators: Decorators[] = ['', 'get' , 'post' , 'put' , 'patch' , 'delete' , 'all', 'routes']
 
-type Method<T extends typeof methods[number] = typeof methods[number]> = {
-    [key in typeof methods[number]]: Omit<Method<T | key>, T | key>
-}
-type CobainRouteBuilder<T extends typeof methods[number] = typeof methods[number]> = Method<T> & {
-    routes: CobainRoute[]
+type CobainRouteBuilder<T extends Decorators = Decorators> = Omit<CobainOmittedRouteBuilder<T>, T>
+
+type CobainOmittedRouteBuilder<T extends Decorators = Decorators> = {
+    [key in Decorators]: key extends 'routes' ? CobainRoute[] : CobainRouteBuilder<T | key>
 }
 // const create = <T extends typeof methods[number] = typeof methods[number]>(type: Methods = '', prevTypes: Methods[] = []): Method<T> | Method<Exclude<Methods, typeof type>> => {
-const create = (type: Methods = '', prevTypes: typeof methods[number][] = []): Method<Exclude<Methods, typeof type>> => {
+const create = <T extends Decorators = ''>(type: T, prevTypes: Decorators[] = []): CobainOmittedRouteBuilder<typeof type> => {
     // type entry = [typeof methods, Method<Exclude<Methods, typeof type>>][]
-    const entries = methods.filter((t) => !(prevTypes.includes(t)))
-            .map((t: typeof methods[number]) => {
+    const entries = decorators.filter((t) => !(prevTypes.includes(t)))
+            .map((t: typeof decorators[number]) => {
                 console.log(t)
                 return [t, create(t, type === '' ? [] : prevTypes.concat([type]))]
             })
@@ -111,10 +116,12 @@ const create = (type: Methods = '', prevTypes: typeof methods[number][] = []): M
  * @param routes The routes that are specific to this application.
  * @returns The route that matches the request.
  */
-export const app: CobainApp = (...routes) => {
-    // const [, handler] = routes[0].routes[0]
-    console.log(routes, { routes: routes[0] })
-    return (ctx) => ctx.req.respond({ status: 200, body: `fkoap` })
+export const app: CobainApp = (ctx) => {
+    return (...routes) => {
+        // const [, handler] = routes[0].routes[0]
+        console.log(routes, { routes: routes[0] })
+        return (ctx) => ctx.req.respond({ status: 200, body: `fkoap` })
+    }
 }
 
 /**
@@ -129,42 +136,42 @@ export const route: CobainRouteHandler = (path, handler) => {
     // const builder: CobainRouteBuilder = Object.assign({}, create(), {
     //     routes
     // })
-    const builder = create()
+    // const builder = create()
     
-    const proxyHandler = (type: Methods = '') => ({
-        // Omit<Method<Methods | typeof prop>, Methods | typeof prop>
-        get: function(target: CobainRouteBuilder<Exclude<Methods, typeof type>>, prop: keyof typeof target, receiver: any): CobainRouteBuilder<Exclude<Methods, typeof type>> {
-            // if (prop in target) {
-            //     // target[prop] = new Proxy(target, proxyHandler)
-            //     return 
-            //     // if (typeof prop === 'function') {
-            //     //     routes.push([{ path, method: 'get' }, route(path, prop as CobainMiddleware)])
-            //     //     return target[prop]
-            //     // }
-            // }
-            console.log(target, `target`)
-            routes = routes.concat([[{ path, method: prop }, handler]])
-            // if (target as CobainRouteBuilder) {
-            // }
-            if (prop === 'routes') {
-                return target
-            }
-            // const keys = Object.keys(target) as Exclude<typeof methods, typeof type>
-            // if (prop === 'build') return target[prop]()
-            // return Reflect.get(target, prop, receiver)
-            return new Proxy({
-                ...create(prop),
-                routes
-            }, proxyHandler(prop))
-            // target.routes.push([{ path, method: 'get' }, handler])
-            // return target[prop]
-        }
-    })
+    // const proxyHandler = (type: Methods = '') => ({
+    //     // Omit<Method<Methods | typeof prop>, Methods | typeof prop>
+    //     get: function(target: CobainRouteBuilder<Exclude<Methods, typeof type>>, prop: keyof typeof target, receiver: any): CobainRouteBuilder<Exclude<Methods, typeof type>> {
+    //         // if (prop in target) {
+    //         //     // target[prop] = new Proxy(target, proxyHandler)
+    //         //     return 
+    //         //     // if (typeof prop === 'function') {
+    //         //     //     routes.push([{ path, method: 'get' }, route(path, prop as CobainMiddleware)])
+    //         //     //     return target[prop]
+    //         //     // }
+    //         // }
+    //         console.log(target, `target`)
+    //         routes = routes.concat([[{ path, method: prop }, handler]])
+    //         // if (target as CobainRouteBuilder) {
+    //         // }
+    //         if (prop === 'routes') {
+    //             return target
+    //         }
+    //         // const keys = Object.keys(target) as Exclude<typeof methods, typeof type>
+    //         // if (prop === 'build') return target[prop]()
+    //         // return Reflect.get(target, prop, receiver)
+    //         return new Proxy({
+    //             ...create(prop),
+    //             routes
+    //         }, proxyHandler(prop))
+    //         // target.routes.push([{ path, method: 'get' }, handler])
+    //         // return target[prop]
+    //     }
+    // })
 
-    const proxy = new Proxy({ ...builder, routes }, proxyHandler())
+    // const proxy = new Proxy({ ...builder, routes }, proxyHandler())
 
     // console.log(routes, proxy, { x: Object.keys(proxy.get!) })
-    return proxy
+    return create('') //proxy
 }
 
 

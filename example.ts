@@ -26,13 +26,22 @@ const allUsers: CobainRequestHandler = (ctx) => {
 
 const f1 = fallthroughMiddleware
 const f2 = fallthroughMiddleware
+const defaultApp = app<{
+    x: string
+    y: number
+}>({
+    local: {
+        x: '',
+        y: 0,
+    }
+})
 
-const users = app(
+const users = defaultApp(
     route('/', pipe(
         f1,
         f2
     )(allUsers)),
-    route('/x', app(route('/', allUsers)))
+    route('/x', defaultApp(route('/', allUsers)))
 )
 
 const exampleApp = cobain({ port: 3333, hostname: '127.0.0.1' })(
