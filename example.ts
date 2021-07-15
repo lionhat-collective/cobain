@@ -33,7 +33,8 @@ const defaultApp = app<{
     local: {
         x: '',
         y: 0,
-    }
+    },
+    decorators: []
 })
 
 const users = defaultApp(
