@@ -13,6 +13,7 @@ export const cobain: Cobain = (addr) => {
                 plugins: [],
             }
         }
+
         async function respond(ctx: CobainContext): Promise<void> {
             // if (ctx.req.)
             // ctx.req.
@@ -23,7 +24,7 @@ export const cobain: Cobain = (addr) => {
             let index = -1
             return dispatch(0)
             function dispatch (i: number) {
-                if (i <= index) return Promise.reject(new Error('next() called multiple times'))
+                if (i <= index) return Promise.reject(new Error('handler() called multiple times'))
                 index = i
                 let fn = middleware[i]
                 if (i === middleware.length) fn = dispatch.bind(null, i + 1)
@@ -43,7 +44,6 @@ export const cobain: Cobain = (addr) => {
                 try {
                     await compose(ctx)
                     handleResponse()
-                    // TODO: handle response?
                 } catch (_err) {
                     // TODO: catch
                 }
@@ -70,45 +70,54 @@ export type CobainContext<AppCtx extends CobainAppContext = CobainAppContext> = 
     req: ServerRequest
 }
 
-export type CobainRequestHandler<Ctx extends CobainContext = CobainContext> = (ctx: Ctx) => 
-    Promise<CobainRequestHandler<Ctx> | void> | CobainRequestHandler<Ctx> | void
+export type CobainRequestHandler = <Ctx extends CobainContext>(ctx: Ctx) => 
+    Promise<CobainRequestHandler | void> | CobainRequestHandler | void
 
-export type CobainMiddleware<
-    Ctx extends CobainContext = CobainContext
-> = (handler?: CobainRequestHandler<Ctx>) => CobainRequestHandler<Ctx>
+export type CobainMiddleware = (handler?: CobainRequestHandler) => CobainRequestHandler
 
-type CobainAppLocals = Record<string, unknown>
+export type CobainAppLocals = Record<string, unknown>
 type CobainAppContext<L extends CobainAppLocals = CobainAppLocals> = {
-    local?: L
-    plugins?: unknown[]
-    decorators: Decorators[]
+    local: L
+    plugins: unknown[]
+    decorators: string[]
 }
 
-export type CobainRoute<Ctx extends CobainContext = CobainContext> = [
+export type CobainRoute = [
     { path: string, method: string }, 
-    CobainRequestHandler<Ctx>
+    CobainRequestHandler
 ]
-export type CobainRouteHandler<AppCtx extends CobainAppContext> = (path: string, handler: CobainRequestHandler<CobainContext<AppCtx>>) => CobainRouteBuilder<AppCtx>
 
-type CobainRouteDecorators<AppCtx extends CobainAppContext> = <D extends Decorators<AppCtx['decorators'][number]>>
-    (decorator: D, prevDecorators?: Decorators<AppCtx['decorators'][number]>[]) => CobainRouteBuilder<AppCtx, D>
+export type CobainRouteHandler<
+    AppCtx extends CobainAppContext, 
+    D extends CobainAppContextDecorators<AppCtx> = CobainAppContextDecorators<AppCtx>
+> = (path: string, handler: CobainRequestHandler) => Omit<CobainRouteBuilder<AppCtx, D>, D>
 
-type CobainAppContextDecorators<AppCtx extends CobainAppContext = CobainAppContext> = Decorators<AppCtx['decorators'][number]>
+type CobainRouteDecorators<AppCtx extends CobainAppContext> = (
+    decorator: CobainAppContextDecorators<AppCtx>,
+    prevDecorators?: CobainAppContextDecorators<AppCtx>[]
+) => CobainRouteBuilder<AppCtx, Exclude<CobainAppContextDecorators<AppCtx>, typeof decorator>>
+
+type CobainAppContextDecorators<AppCtx extends CobainAppContext> = Decorators<AppCtx['decorators'][number]>
+
+// type CobainOmittedRouteBuilder<
+//     AppCtx extends CobainAppContext = CobainAppContext,
+//     D extends CobainAppContextDecorators<AppCtx> = CobainAppContextDecorators<AppCtx>
+// > = D extends 'routes' ? CobainRoute[] : Omit<CobainRouteBuilder<AppCtx, D>, D>
 
 type CobainRouteBuilder<
-    AppCtx extends CobainAppContext = CobainAppContext,
+    AppCtx extends CobainAppContext,
     D extends CobainAppContextDecorators<AppCtx> = CobainAppContextDecorators<AppCtx>
 > = {
     [key in CobainAppContextDecorators<AppCtx>]: key extends 'routes' ? CobainRoute[] : Omit<CobainRouteBuilder<AppCtx, D | key>, D | key>
 }
 
-type CobainAppRouteContext<AppCtx extends CobainAppContext = CobainAppContext> = (route: CobainRouteHandler<AppCtx>) => CobainRouteBuilder<AppCtx>[]
+type CobainAppRouteContext<AppCtx extends CobainAppContext, D extends CobainAppContextDecorators<AppCtx>> = (route: CobainRouteHandler<AppCtx>) => Omit<CobainRouteBuilder<AppCtx, D>, D>[]
 
 export type CobainApp = <L extends CobainAppLocals>(appContext: CobainAppContext<L>) => 
-    (routeCtx: CobainAppRouteContext<typeof appContext>) => CobainRequestHandler<CobainContext<typeof appContext>>
+    (route: CobainAppRouteContext<typeof appContext, typeof appContext['decorators'][number]>) => CobainRequestHandler
 
 
-type Decorators<D extends string = ''> = D | '' | 'get' | 'post' | 'put' | 'patch' | 'delete' | 'all' | 'routes'
+type Decorators<D extends string = ''> = D | '' | 'get' | 'post' | 'put' | 'patch' | 'delete' | 'all' | 'paths'
 
 /**
  * Creates an application that matches a request route path.
@@ -117,6 +126,37 @@ type Decorators<D extends string = ''> = D | '' | 'get' | 'post' | 'put' | 'patc
  * @returns The route that matches the request.
  */
  export const app: CobainApp = appContext => {
+    const appDecorators: CobainAppContextDecorators<typeof appContext>[] = [
+        '', 'get', 'post', 'put', 'patch', 'delete', 'all', 'paths'
+    ].concat(appContext.decorators)
+    const totalDecorators = appDecorators.length
+
+    const createDecorators = (totalDecorators: number) => {
+        const decoratorsFor = (decorator) => {
+            for (let i = 0; i < totalDecorators; i++) {
+                
+            }
+        }
+        const decorators = appDecorators
+            .map(decorator => [decorator, decoratorsFor(decorator)])
+        // const entries = appDecorators
+            //     .filter((t) => !(prevDecorators.includes(t)))
+            //     .map((t) => [
+            //         t,
+            //         t === 'routes' && decorator === '' ? [] : 
+            //             t === 'routes' ? [prevDecorators.map(method => [{ path, method }, handler])] : 
+            //                 create(t, prevDecorators.concat([decorator]))
+            //     ])
+            // return Object.fromEntries(entries)
+    }
+
+    const decorators = createDecorators(totalDecorators)
+
+    // const decorators = {}
+    // for (let i = 0; i < appDecorators.length; i++) {
+        
+    // }
+
     /**
      * Creates a route handler for usage inside an app.
      * @param path The path to match against.
@@ -125,21 +165,19 @@ type Decorators<D extends string = ''> = D | '' | 'get' | 'post' | 'put' | 'patc
      * TODO: do this just-in-time for better perf.
      */
     const route: CobainRouteHandler<typeof appContext> = (path, handler) => {
-        const create: CobainRouteDecorators<typeof appContext> = (decorator, prevDecorators = []) => {
-            const entries = appContext.decorators.filter((t) => !(prevDecorators.includes(t)))
-                    .map((t: CobainAppContextDecorators<typeof appContext>) => [
-                        t,
-                        create(t, decorator === '' ? [] : prevDecorators.concat([decorator]))
-                    ])
-            return Object.assign({}, Object.fromEntries(entries), { routes: prevDecorators.map(method => [{ path, method }, handler]) })
-        }
-        return create('')
+        // const create: CobainRouteDecorators<typeof appContext> = (decorator, prevDecorators = []) => {
+            
+            
+        // }
+        return Object.assign({}, decorators)
     }
-    return (routeCtx) => {
-        const routes = routeCtx(route)
+    return (appRoutes) => {
+        console.log(route('/', () => {}))
+
+        const routes = appRoutes(route)
         console.log(routes)
         return ctx => {
-            return routes[0].routes[0][1](ctx) // for testing!
+            // return routes[0].routes[0][1](ctx) // for testing!
             // ctx.req.respond({ status: 200, body: `we made it!` })
         }
     }
@@ -150,18 +188,25 @@ type Decorators<D extends string = ''> = D | '' | 'get' | 'post' | 'put' | 'patc
     // }
 }
 
+
 app<{
     x: number
 }>({
     local: {
         x: 0
     },
+    plugins: [],
     decorators: []
-})(route => [
-    route('/', () => {}),
-    route('/:id', () => {})
-])
-
+})(route => {
+    return [
+        route('/', () => {}),
+        route('/:id', () => {})
+    ]
+})({
+    local: { x: 1 },
+    plugins: [],
+    req: new ServerRequest()
+})
 
 
 

@@ -1,6 +1,6 @@
 import { pipe } from 'https://deno.land/x/rambda@v6.7.0/pipe.js'
-import { cobain, app, route } from './cobain.ts'
-import type { CobainMiddleware, CobainRequestHandler } from './cobain.ts'
+import { cobain, app } from './cobain.ts'
+import type { CobainMiddleware, CobainRequestHandler, CobainAppLocals } from './cobain.ts'
 
 const middleware: CobainMiddleware = (handler) => (ctx) => {
     console.log(`middleware called`)
@@ -26,24 +26,30 @@ const allUsers: CobainRequestHandler = (ctx) => {
 
 const f1 = fallthroughMiddleware
 const f2 = fallthroughMiddleware
-const defaultApp = app<{
+
+interface DefaultAppCtx extends CobainAppLocals {
     x: string
     y: number
-}>({
+}
+
+const defaultApp = app<DefaultAppCtx>({
     local: {
         x: '',
         y: 0,
     },
+    plugins: [],
     decorators: []
 })
 
-const users = defaultApp(
+const app2 = app<DefaultAppCtx>({ decorators: [], plugins: [], local: { x: 'ded', y: 1 } })
+
+const users = defaultApp(route => [
     route('/', pipe(
         f1,
         f2
     )(allUsers)),
-    route('/x', defaultApp(route('/', allUsers)))
-)
+    route('/x', app2((route) => [route('/', allUsers)]))
+])
 
 const exampleApp = cobain({ port: 3333, hostname: '127.0.0.1' })(
     // route(middleware()),
