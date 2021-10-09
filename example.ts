@@ -11,50 +11,54 @@ const middleware: CobainMiddleware = (handler) => (ctx) => {
     ctx.req.respond({ status: 200, body: `MIDDLEWARE` })
 }
 
+let count = 0
+
 const fallthroughMiddleware: CobainMiddleware = handler => async ctx => {
+    count += 1
     if (handler) {
-        console.log(`before:TEST`)
+        console.log(`[${count}]: before:TEST`)
         await handler(ctx)
-        console.log(`after:Test`)
+        console.log(`[${count}]: after:Test`)
     }
 }
 
 const allUsers: CobainRequestHandler = (ctx) => {
+    console.log(ctx.local)
     console.log(`useriso`)
-    ctx.req.respond({ status: 200, body: `hello world` })
+    ctx.req.respond({ status: 200, body: `hello world ${ctx.local.x}, ${ctx.local.y}` })
 }
 
 const f1 = fallthroughMiddleware
 const f2 = fallthroughMiddleware
 
-interface DefaultAppCtx extends CobainAppLocals {
-    x: string
+interface AppLocals extends CobainAppLocals {
+    x: number
     y: number
 }
 
-const defaultApp = app<DefaultAppCtx>({
+const defaultApp = app<AppLocals>({
     local: {
-        x: '',
-        y: 0,
+        x: 42,
+        y: 24,
     },
     plugins: [],
     decorators: []
 })
 
-const app2 = app<DefaultAppCtx>({ decorators: [], plugins: [], local: { x: 'ded', y: 1 } })
+const app2 = app<AppLocals>({ decorators: [], plugins: [], local: { x: 24, y: 42 } })
 
-const users = defaultApp(route => [
+const usersApp = defaultApp(route => [
     route('/', pipe(
         f1,
         f2
-    )(allUsers)),
+    )(allUsers)).get.post,
     route('/x', app2((route) => [route('/', allUsers)]))
 ])
 
 const exampleApp = cobain({ port: 3333, hostname: '127.0.0.1' })(
     // route(middleware()),
     // middleware(),
-    fallthroughMiddleware(users)
+    fallthroughMiddleware(usersApp)
 )
 
 exampleApp.start()
