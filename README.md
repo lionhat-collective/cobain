@@ -15,11 +15,12 @@ Utilizing function composition and proxies to create a cohesive and fluent web-f
  - [ ] Custom App State/Context
  - [x] Middleware/Function Composition
  - [x] Server bootstrapping
+ - [ ] First-class [Peep](https://github.com/lionhat-collective/peep) support
 
 ### Usage:
 ```typescript
 import { pipe } from 'https://deno.land/x/rambda@v6.7.0/pipe.js'
-import { cobain, app, route } from './cobain.ts'
+import { cobain, router, mount } from './cobain.ts'
 import type { CobainMiddleware, CobainRequestHandler } from './cobain.ts'
 
 const middleware: CobainMiddleware = (handler) => (ctx) => {
@@ -40,25 +41,30 @@ const fallthroughMiddleware: CobainMiddleware = handler => async ctx => {
 }
 
 const allUsers: CobainRequestHandler = (ctx) => {
+    console.log(ctx.local)
     console.log(`useriso`)
-    ctx.req.respond({ status: 200, body: `hello world` })
+    ctx.req.respond({ status: 200, body: `hello world ${ctx?.local?.x ?? -1}, ${ctx?.local?.y ?? -1}` })
 }
 
-const f1 = fallthroughMiddleware
-const f2 = fallthroughMiddleware
-
-const users = app(
-    route('/', pipe(f1, f2)(allUsers)),
-    route('/x', app(route('/', allUsers)))
+const authApp = cobain(
+    fallthroughMiddleware(ctx => {
+        ctx.req.respond({ status: 200, body: `auth` })
+    })
 )
 
-const exampleApp = cobain({ port: 3333, hostname: '127.0.0.1' })(
-    // route(middleware()),
-    // middleware(),
-    fallthroughMiddleware(users)
-)
+const usersRouter = router(route => [
+    route('/', pipe(
+        fallthroughMiddleware,
+        fallthroughMiddleware,
+    )(allUsers))
+])
 
-exampleApp.start()
+const app = cobain(
+    usersRouter,
+    mount(authApp()),
+)({ port: 3333, hostname: '127.0.0.1' })
+
+await app.start()
 ```
 
 ### Attribution:

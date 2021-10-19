@@ -59,14 +59,14 @@ export const cobain: Cobain = (...middleware) => {
                     // console.log(request.headers.get('user-agent') || 'unknown')
                 }
             },
-            mount() {
-                return middleware
-            },
         }
     }
 }
 
-type CobainRouter = (route: CobainRouteHandler) => Omit<CobainRouteBuilder, Exclude<CobainDecorator, 'paths'>>[]
+const difference = <T>(a: T[], b: T[]) => a.filter(ai => !b.includes(ai))
+
+export const mount = (instance: CobainInstance) =>
+    (ctx: CobainContext) => instance.handleRequest(ctx.req)
 
 export const router = (route: CobainRouter): CobainRequestHandler => {
     const routeHandler: CobainRouteHandler = (path, handler) => {
@@ -87,14 +87,17 @@ export const router = (route: CobainRouter): CobainRequestHandler => {
         return safeMap(cobainDecorators)
     }
     const routes = route(routeHandler)
+
     // execute plugins, act on decorators, etc.
     return routes[0].paths[0][1]
 }
 
+type CobainRouter = <Decorator extends CobainDecorator = CobainDecorator>(route: CobainRouteHandler) => 
+    Omit<CobainRouteBuilder<Decorator>, Exclude<CobainDecorator, 'paths'>>[]
+
 export interface CobainInstance {
     start: () => Promise<void>
     handleRequest: (req: ServerRequest) => Promise<void>
-    mount: () => CobainRequestHandler[]
 }
 
 export type Cobain = (...middleware: CobainRequestHandler[]) => (addr?: string | HTTPOptions) => CobainInstance
@@ -117,80 +120,18 @@ export type CobainRoute = [
     handler: CobainRequestHandler
 ]
 
-export type CobainRouteHandler = (path: string, handler: CobainRequestHandler) => CobainRouteBuilder
+export type CobainRouteHandler<Decorator extends CobainDecorator = CobainDecorator> = (path: string, handler: CobainRequestHandler) => CobainRouteBuilder<Decorator>
 
-type CobainRouteBuilder = {
-    [key in CobainDecorator]: key extends 'paths' ? CobainRoute[] : Omit<CobainRouteBuilder, | key>
+type CobainRouteBuilder<Decorator extends CobainDecorator = CobainDecorator> = {
+    [key in CobainDecorator]: key extends 'paths' ? CobainRoute[] : Omit<CobainRouteBuilder<Decorator | key>, Decorator | key>
 }
 
 type CobainDecorator = 'get' | 'post' | 'put' | 'patch' | 'delete' | 'paths' | 'all'
 const cobainDecorators: CobainDecorator[] = [
     'get', 'post', 'put', 'patch', 'delete', 'paths', 'all'
 ]
-type CobainDecoratorMap = (prevDecorators: CobainDecorator[]) => CobainRouteBuilder
-
-const difference = <T>(a: T[], b: T[]) => a.filter(ai => !b.includes(ai))
-
-/*
-
-const usersApp = cobain(route => (
-    fallthroughMiddleware,
-    route('/', () => {}).get.post.put
-))
-
-const app = cobain(
-    routes(route => [
-        route('/', () => {}).get.post.put,
-    ])
-)({
-    port: 3333
-})
-
-*/
-
-// /**
-//  * Creates an application that matches a request route path.
-//  * Route order matters!
-//  * @param routes The routes that are specific to this application.
-//  * @returns The route that matches the request.
-//  */
-//  export const app: CobainApp = appContext => {
-//    const route: CobainRouteHandler<typeof appContext> = (path, handler) => {
-//         const getPaths = (decorators: CobainDecorator[]): CobainRoute<typeof appContext>[] => 
-//             decorators
-//                 .filter(method => method !== 'paths')
-//                 .map(method => [{ path, method }, handler])
-//         const safeMap: CobainDecoratorMap<typeof appContext> = prev => {
-//             const entries = prev.map((decorator, idx) => {
-//                 const next = prev.slice(0, idx).concat(prev.slice(idx + 1))
-//                 if (decorator === 'paths') {
-//                     return [decorator, getPaths(difference(cobainDecorators, next))]
-//                 }
-//                 return [decorator, safeMap(next)]
-//             })
-//             return Object.fromEntries(entries)
-//         }
-//         return safeMap(cobainDecorators)
-//     }
-
-//     return (appRoutes) => {
-//         const routes = appRoutes(route)
-//         // console.log(routes)
-//         return ctx => {
-//             // do app specific things here:
-//             // execute plugins, act on decorators, etc.
-//             return routes[0].paths[0][1](ctx) // for testing!
-//             // ctx.req.respond({ status: 200, body: `we made it!` })
-//         }
-//     }
-//     // return ((route) => []) => {
-//     //     // const [, handler] = routes[0].routes[0]
-//     //     console.log(routes, { routes: routes[0] })
-//     //     return (ctx) => ctx.req.respond({ status: 200, body: `fkoap` })
-//     // }
-// }
-
-
+type CobainDecoratorMap = (prevDecorators: CobainDecorator[]) => 
+    CobainRouteBuilder<typeof prevDecorators[number]>
 
 
 

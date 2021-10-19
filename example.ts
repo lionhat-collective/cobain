@@ -1,5 +1,5 @@
 import { pipe } from 'https://deno.land/x/rambda@v6.7.0/pipe.js'
-import { cobain, router } from './cobain.ts'
+import { cobain, router, mount } from './cobain.ts'
 import type { CobainMiddleware, CobainRequestHandler, CobainAppLocals } from './cobain.ts'
 
 const middleware: CobainMiddleware = (handler) => (ctx) => {
@@ -15,6 +15,8 @@ let count = 0
 
 const fallthroughMiddleware: CobainMiddleware = handler => async ctx => {
     count += 1
+    ctx.local.x = count
+    ctx.local.y = 100
     if (handler) {
         console.log(`[${count}]: before:TEST`)
         await handler(ctx)
@@ -49,7 +51,7 @@ interface AppLocals extends CobainAppLocals {
 
 const authApp = cobain(
     fallthroughMiddleware(ctx => {
-        ctx.req.respond({ status: 200, body: `auth` })
+        ctx.req.respond({ status: 200, body: `auth ${ctx.local.x} ${ctx.local.y}` })
     })
 )
 
@@ -62,7 +64,7 @@ const usersRouter = router(route => [
 
 const app = cobain(
     usersRouter,
-    ...authApp().mount(),
+    mount(authApp()),
 )({ port: 3333, hostname: '127.0.0.1' })
 
 await app.start()
