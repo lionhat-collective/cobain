@@ -14,7 +14,8 @@ const test = peep(component => {
         div(
             div("Hello world"),
             "Heya"
-        ).class("hello-world")
+        )
+        .class("hello-world")
     )
 
     if (x) {

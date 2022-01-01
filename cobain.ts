@@ -130,8 +130,7 @@ type CobainDecorator = 'get' | 'post' | 'put' | 'patch' | 'delete' | 'paths' | '
 const cobainDecorators: CobainDecorator[] = [
     'get', 'post', 'put', 'patch', 'delete', 'paths', 'all'
 ]
-type CobainDecoratorMap = (prevDecorators: CobainDecorator[]) => 
-    CobainRouteBuilder<typeof prevDecorators[number]>
+type CobainDecoratorMap = (prevDecorators: CobainDecorator[]) => CobainRouteBuilder<typeof prevDecorators[number]>
 
 
 
